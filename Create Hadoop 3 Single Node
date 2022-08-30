@@ -154,4 +154,3 @@ Security group rule ID	  Type Info	  Protocol Info	  Port range Info	    Sour
 sgr-A (Take Default)	  All traffic	  All	             All	             Anywhere-IPv4    0.0.0.0/0 (Automatically fetch)
 sgr-B (Take Default)	  All traffic	  All 		         All	             Anywhere-IPv6	  ::/0 (Automatically fetch)
 sgr-C (Take Default)	  All traffic	  All		           All	               My IP	        152.57.160.181/31 (Automatically fetch)
-
