@@ -1,4 +1,8 @@
-# step-1 (Connect To the DataCenter with Public Key or Private in case of windows through Putty.)
+#####################################################
+		            Hadoop 3 Multi Node
+#####################################################
+
+# step-1 (Connect To the DataCenter with Public Key or Private in case of windows through Putty/Mobaxterm.)
 
 ssh -i Downloads/file.pem ubuntu@public_dns_address
 
