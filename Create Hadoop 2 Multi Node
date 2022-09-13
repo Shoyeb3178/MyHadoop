@@ -1,0 +1,296 @@
+################# HADOOP 2 DEPLOYMENT ##################
+
+STEP-1 (# Connect To the DataCenter with Public Key or Private in case of windows through Putty/Mobaxterm)
+
+ssh -i Downloads/file.pem ubuntu@public_dns_address
+
+STEP-2 (# Update the system)
+
+sudo apt-get update && sudo apt-get dist-upgrade -y
+
+STEP-3 (# Copy public key on to the DataCenter main server ( take new window server and fire the command)
+
+scp -i multi.pem multi.pem ubuntu@public_dns:~/.ssh
+
+STEP-4 (# Create a Hadoop user for accessing HDFS)
+
+sudo addgroup hadoop
+sudo adduser hduser --ingroup hadoop 
+sudo adduser hduser sudo
+sudo su hduser
+cd
+
+STEP-5 (# Create local key)
+
+ssh-keygen
+cd .ssh
+cat id_rsa.pub >> authorized_keys
+ssh localhost
+exit
+
+STEP-6 (# Copy the instance public key (multi.pem) to hduser's directory)
+
+sudo su
+
+cp /home/ubuntu/.ssh/multi.pem /home/hduser/.ssh/
+chown hduser:hadoop /home/hduser/.ssh/multi.pem
+
+exit
+cd
+
+STEP-7 (# Install Java 8 (Open-JDK))
+
+sudo apt install openjdk-8-jdk openjdk-8-jre -y
+java -version
+
+STEP-8 (# Download and Install Hadoop)
+
+wget https://dlcdn.apache.org/hadoop/common/stable2/hadoop-2.10.2.tar.gz
+tar -xzvf hadoop-2.10.1.tar.gz
+sudo mv hadoop-2.9.2 /usr/local/hadoop
+sudo chown -R hduser:hadoop /usr/local/hadoop
+
+STEP-9 (# Set Enviornment Variable)
+
+readlink -f $(which java)
+nano ~/.bashrc
+
+# -- HADOOP ENVIRONMENT VARIABLES START -- #
+
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export HADOOP_HOME=/usr/local/hadoop
+export PATH=$PATH:$HADOOP_HOME/bin
+export PATH=$PATH:$HADOOP_HOME/sbin
+export PATH=$PATH:/usr/local/hadoop/bin/
+export HADOOP_MAPRED_HOME=$HADOOP_HOME
+export HADOOP_COMMON_HOME=$HADOOP_HOME
+export HADOOP_HDFS_HOME=$HADOOP_HOME
+export YARN_HOME=$HADOOP_HOME
+export HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop
+export PDSH_RCMD_TYPE=ssh
+
+# -- HADOOP ENVIRONMENT VARIABLES END -- #
+
+$ source ~/.bashrc
+
+cd /usr/local/hadoop/etc/hadoop/
+
+STEP-10 (#Update hadoop-env.sh)
+
+nano hadoop-env.sh
+
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export HADOOP_LOG_DIR=/var/log/hadoop
+
+sudo mkdir /var/log/hadoop/
+sudo chown -R hduser:hadoop /var/log/hadoop
+
+STEP-11 (#Disable IPV6)
+
+sudo nano /etc/sysctl.conf
+
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.lo.disable_ipv6 = 1
+
+sudo sysctl -p
+
+STEP-12 (#Disable FireWall iptables)
+
+sudo iptables -L -n
+sudo ufw status
+sudo ufw disable
+
+#Disabling Transparent Hugepage Compaction)
+
+--->> #Red Hat/CentOS: /sys/kernel/mm/redhat_transparent_hugepage/defrag
+
+cat /sys/kernel/mm/transparent_hugepage/defrag
+sudo sed -i '/exit 0/d' /etc/rc.local
+
+--->> #Ubuntu/Debian, OEL, SLES: /sys/kernel/mm/transparent_hugepage/defrag
+
+sudo su -c 'cat >>/etc/rc.local <<EOL
+if test -f /sys/kernel/mm/transparent_hugepage/enabled; then
+  echo never > /sys/kernel/mm/transparent_hugepage/enabled
+fi
+if test -f /sys/kernel/mm/transparent_hugepage/defrag; then
+   echo never > /sys/kernel/mm/transparent_hugepage/defrag 
+fi
+exit 0
+EOL'
+
+sudo -i
+source /etc/rc.local
+
+STEP-13 (# Set Swappiness)
+
+sudo sysctl -a | grep vm.swappiness
+sudo sysctl vm.swappiness=1
+
+STEP-14 (# Configure NTP)
+ 
+timedatectl status
+timedatectl list-timezones
+sudo timedatectl set-timezone Asia/Kolkata
+sudo apt install ntp -y
+sudo ntpq -p
+sudo nano /etc/ntp.conf
+
+STEP-15 (##Configure SSH Password less logins)
+
+sudo su -c touch /home/hduser/.ssh/config; echo "Host *\n StrictHostKeyChecking no\n UserKnownHostsFile=/dev/null" > /home/hduser/.ssh/config
+sudo service ssh restart
+
+STEP-16 (# Configure .profile (make sure you are on NN))
+ 
+ nano .profile
+
+ eval `ssh-agent` ssh-add /home/hduser/.ssh/abc.pem
+
+ source .profile
+
+STEP-17( -----****** Create a image/snapshot at this point ******-----)
+
+Create 4 nodes from this image
+
+STEP-18 (#sudo nano /etc/hosts and include these lines:FQDN)
+
+sudo nano /etc/hosts
+
+172.31.27.167 ip-172-31-27-167.us-east-2.compute.internal nn
+172.31.25.124 ip-172-31-25-124.us-east-2.compute.internal rm
+172.31.31.150 ip-172-31-31-150.us-east-2.compute.internal 1dn
+172.31.22.151 ip-172-31-22-151.us-east-2.compute.internal 2dn
+172.31.26.181 ip-172-31-26-181.us-east-2.compute.internal 3dn
+
+
+Do this for all nodes 
+
+
+STEP-19 (# Install and Configure dsh)
+
+sudo apt install dsh -y
+
+sudo nano /etc/dsh/machines.list
+#localhost
+nn
+rm
+1dn
+2dn
+3dn
+
+dsh -a uptime
+dsh -a source .profile
+
+cd /usr/local/hadoop/etc/hadoop
+
+STEP-20 (# Configure masters and slaves)
+
+nano masters
+rm
+
+nano slaves
+1dn
+2dn
+3dn
+
+STEP-21 (#Update core-site.xml)
+
+nano core-site.xml
+
+<property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://nn:9000</value>
+  </property>
+
+STEP-22 (#Update hdfs-site.xml on name node)
+ 
+mkdir -p /usr/local/hadoop/data/hdfs/namenode
+
+nano hdfs-site.xml
+
+<property>
+    <name>dfs.replication</name>
+    <value>3</value>
+  </property>
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>file:///usr/local/hadoop/data/hdfs/namenode</value>
+  </property>
+   <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>file:///usr/local/hadoop/data/hdfs/datanodeshoyeb</value>
+  </property> 
+
+
+STEP=23 (#Create proper directories on datanode's)
+
+dsh -m 1dn,2dn,3dn mkdir -p /usr/local/hadoop/data/hdfs/datanodeshoyeb
+ 
+STEP-24 (#Update yarn-site.xml)
+
+nano yarn-site.xml
+
+<property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.hostname</name>
+    <value>rm</value>
+  </property>
+
+STEP-25 (#Update mapred-site.xml)
+
+cp mapred-site.xml.template mapred-site.xml
+
+nano mapred-site.xml
+
+<property>
+    <name>mapreduce.jobtracker.address</name>
+    <value>rm:54311</value>
+  </property>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+  </property>
+
+sudo chown -R hduser:hadoop $HADOOP_HOME
+
+STEP-26 (#SCP all the files)
+
+cd /usr/local/hadoop/etc/hadoop
+
+#For all nodes
+
+scp core-site.xml hdfs-site.xml mapred-site.xml yarn-site.xml slaves nn:/usr/local/hadoop/etc/hadoop
+scp core-site.xml hdfs-site.xml mapred-site.xml yarn-site.xml slaves rm:/usr/local/hadoop/etc/hadoop
+scp core-site.xml hdfs-site.xml mapred-site.xml yarn-site.xml slaves 1dn:/usr/local/hadoop/etc/hadoop
+scp core-site.xml hdfs-site.xml mapred-site.xml yarn-site.xml slaves 2dn:/usr/local/hadoop/etc/hadoop
+scp core-site.xml hdfs-site.xml mapred-site.xml yarn-site.xml slaves 3dn:/usr/local/hadoop/etc/hadoop
+
+
+
+STEP-27 (#Format Namenode)
+
+cd
+
+hdfs namenode -format
+
+STEP-28 (# Start the cluster)
+
+start-dfs.sh
+start-yarn.sh
+ 
+dsh -a jps
+
+STEP-29 (#enter the data and take trail into main cluster on WEB UI)
+
+hdfs dfs -mkdir /user
+hdfs dfs -mkdir /user/ubuntu
+hdfs dfs -put hadoop-2.9.2.tar.gz /user/ubuntu
+hdfs dfs -ls 
+hdfs dfs -ls -R
+
+yarn jar /usr/local/hadoop/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.9.2.jar pi  5 10
