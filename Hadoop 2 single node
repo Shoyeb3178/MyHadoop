@@ -17,6 +17,7 @@ ssh-keygen
 cd .ssh
 cat id_rsa.pub >> authorized_keys
 ssh localhost
+cd
 
 #Disable IPV6
 sudo nano /etc/sysctl.conf
@@ -92,7 +93,9 @@ nano mapred-site.xml
 sudo mkdir -p /usr/local/hadoop_store/hdfs/namenode
 sudo mkdir -p /usr/local/hadoop_store/hdfs/datanode
 sudo chown -R hduser:hadoop /usr/local/hadoop_store
+
 nano hdfs-site.xml
+
 <property> 
 <name>dfs.replication</name>
   <value>1</value>
@@ -108,12 +111,15 @@ nano hdfs-site.xml
 
 
 #Update yarn-site.xml
+
 nano yarn-site.xml
+
 <property>
       <name>yarn.nodemanager.aux-services</name>
       <value>mapreduce_shuffle</value>
    </property>
 
+cd
 
 #Format Namenode
 hdfs namenode -format
@@ -122,19 +128,13 @@ start-all.sh
 or start-dfs.sh
 start-yarn.sh
 
-
 jps
-
-
 
 hdfs dfs -mkdir /user
 hdfs dfs -mkdir /user/ubuntu
 hdfs dfs -put --- /user/ubuntu
 
 hadoop jar /usr/local/hadoop/share/hadoop/mapreduce/hadoop-*examples*.jar pi 5 10
-
-
-
 
 <----- Troubleshooting ----->
 # if you are getting >>>  ..WARN.util.NativeCodeLoader: Unable to load native-hadoop library
